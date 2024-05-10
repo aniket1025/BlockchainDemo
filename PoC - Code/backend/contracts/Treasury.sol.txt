@@ -1,0 +1,55 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import "./GroupcoinToken.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+contract TreasuryContract is Ownable {
+    GroupcoinToken public token;
+
+    mapping(address => uint256) public subsidiaryBalances;
+
+    event TokensMinted(address indexed subsidiary, uint256 amount);
+    event TokensAllocated(address indexed subsidiary, uint256 amount);
+    event Settlement(address indexed subsidiary, uint256 convertedAmount);
+
+    constructor(GroupcoinToken _token) {
+        token = _token;
+    }
+
+    function distributeTokens(address[] calldata subsidiaries, uint256[] calldata amounts) external onlyOwner {
+        require(subsidiaries.length == amounts.length, "Mismatched input lengths.");
+        for (uint i = 0; i < subsidiaries.length; i++) {
+            token.mint(subsidiaries[i], amounts[i]);
+            subsidiaryBalances[subsidiaries[i]] += amounts[i];
+            emit TokensMinted(subsidiaries[i], amounts[i]);
+        }
+    }
+
+    function allocateTokens(address from, address to, uint256 amount) public {
+        require(msg.sender == from || msg.sender == owner(), "Unauthorized: sender must own the tokens or be the owner.");
+        require(subsidiaryBalances[from] >= amount, "Insufficient balance.");
+        subsidiaryBalances[from] -= amount;
+        subsidiaryBalances[to] += amount;
+        token.transfer(to, amount);
+        emit TokensAllocated(to, amount);
+    }
+
+    function settleAccounts() external onlyOwner {
+        // Simulate conversion and clearing of balances
+        for (uint i = 0; i < subsidiaries.length; i++) {
+            address subsidiary = subsidiaries[i];
+            uint256 balance = subsidiaryBalances[subsidiary];
+            uint256 convertedAmount = convertToCurrency(balance); // Implement this function based on your FX rates
+            subsidiaryBalances[subsidiary] = 0;
+            token.burn(subsidiary, balance);
+            emit Settlement(subsidiary, convertedAmount);
+        }
+    }
+
+    // This function would need actual FX rate data to work
+    function convertToCurrency(uint256 amount) private view returns (uint256) {
+        uint256 conversionRate = 1; // Placeholder, actual rate needed
+        return amount * conversionRate;
+    }
+}
